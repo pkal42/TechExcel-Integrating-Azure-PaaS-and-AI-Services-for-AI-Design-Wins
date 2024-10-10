@@ -1,7 +1,7 @@
 name: API Deployment
 
 env:
-  registryName: kswvf4giumcosureg.azurecr.io
+  registryName: vm6kswvf4giumcosureg.azurecr.io
   repositoryName: techexcel/csapi
   dockerFolderPath: ./src/ContosoSuitesWebAPI
   tag: ${{github.run_number}}
@@ -78,4 +78,4 @@ jobs:
     - uses: azure/webapps-deploy@v2
       with:
         app-name: 'vm6kswvf4gium-api'
-        images: kswvf4giumcosureg.azurecr.io/techexcel/csapi:${{github.run_number}}
+        images: vm6kswvf4giumcosureg.azurecr.io/techexcel/csapi:${{github.run_number}}
