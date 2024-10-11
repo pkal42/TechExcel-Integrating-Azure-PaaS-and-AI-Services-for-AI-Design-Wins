@@ -8,8 +8,17 @@ using Microsoft.Data.SqlClient;
 using Azure.AI.OpenAI;
 using Azure;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.ChatCompletion;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// create the builder object
+var config = new ConfigurationBuilder()
+    .AddUserSecrets<Program>()
+    .AddEnvironmentVariables()
+    .Build();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -26,6 +35,25 @@ builder.Services.AddSingleton<CosmosClient>((_) =>
         connectionString: builder.Configuration["CosmosDB:ConnectionString"]!
     );
     return client;
+});
+
+builder.Services.AddSingleton<Kernel>((_) =>
+{
+    // Access configuration values from the WebApplicationBuilder
+    var deploymentName = builder.Configuration["AzureOpenAI:DeploymentName"]!;
+    var endpoint = builder.Configuration["AzureOpenAI:Endpoint"]!;
+    var apiKey = builder.Configuration["AzureOpenAI:ApiKey"]!;
+
+    // Create and configure the IKernelBuilder
+    IKernelBuilder kernelBuilder = Kernel.CreateBuilder();
+    kernelBuilder.AddAzureOpenAIChatCompletion(
+        deploymentName: deploymentName,
+        endpoint: endpoint,
+        apiKey: apiKey
+    );
+
+    kernelBuilder.Plugins.AddFromType<DatabaseService>();
+    return kernelBuilder.Build();
 });
 
 builder.Services.AddSingleton<AzureOpenAIClient>((_) =>
@@ -82,8 +110,14 @@ app.MapGet("/Hotels/{hotelId}/Bookings/{min_date}", async (int hotelId, DateTime
 app.MapPost("/Chat", async Task<string> (HttpRequest request) =>
 {
     var message = await Task.FromResult(request.Form["message"]);
-    
-    return "This endpoint is not yet available.";
+    var kernel = app.Services.GetRequiredService<Kernel>();
+    var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
+    var executionSettings = new OpenAIPromptExecutionSettings
+    {
+        ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
+    };
+    var response = await chatCompletionService.GetChatMessageContentAsync(message.ToString(), executionSettings, kernel);
+    return response?.Content!;
 })
     .WithName("Chat")
     .WithOpenApi();
